@@ -1,0 +1,5 @@
+path: data/processed_yolo_data
+train: images/train
+val: images/val
+names:
+  0: tennis_ball

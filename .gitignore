@@ -1,0 +1,59 @@
+# 虚拟环境
+/.venv/
+venv/
+ENV/
+env/
+
+# Python 缓存文件和字节码
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE 和编辑器配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 数据集 (根据实际情况决定是否忽略)
+# 如果数据集很大，不建议直接提交到Git仓库。
+# 请取消注释以下行来忽略特定数据文件或目录，如果需要的话。
+# data/source_dataset/original_competition_data/*.jpg
+# data/source_dataset/original_competition_data/图片对应输出结果.txt
+# data/processed_yolo_data/images/train/
+# data/processed_yolo_data/images/val/
+# data/processed_yolo_data/labels/train/
+# data/processed_yolo_data/labels/val/
+# data/processed_yolo_data/all_labels/
+
+# YOLO 训练输出
+runs/
+tennis_ball_runs/
+
+# 脚本生成的输出 (根据实际情况添加)
+# 例如，如果 process.py 的输出目录是 results/ 或 video/outputs/
+results/
+video/outputs/
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# Conda 环境文件 (如果使用Conda)
+# .conda/
+# conda-meta/
+# envs/
+
+# 笔记本检查点
+.ipynb_checkpoints
+
+# 构建和分发
+build/
+dist/
+*.egg-info/
+wheels/
+*.tar.gz
+*.whl
+
+# 日志文件
+*.log
