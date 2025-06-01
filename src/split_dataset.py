@@ -4,21 +4,24 @@ import shutil
 import argparse
 from tqdm import tqdm
 
-def split_dataset(base_images_dir, base_labels_dir, output_images_dir, output_labels_dir, train_ratio=0.8, random_seed=42):
-    """
-    将数据集划分为训练集和验证集。
+def split_dataset(base_images_dir: str, base_labels_dir: str, output_images_dir: str, output_labels_dir: str, train_ratio: float = 0.8, random_seed: int = 42):
+    """将数据集划分为训练集和验证集。
 
-    参数:
-        base_images_dir (str): 存放所有源图片的目录 (例如 data/processed_yolo_data/images/)
-        base_labels_dir (str): 存放所有源YOLO标签的目录 (例如 data/processed_yolo_data/all_labels/)
-        output_images_dir (str): 输出图片的目标根目录 (例如 data/processed_yolo_data/images/)
+    Args:
+        base_images_dir: 存放所有源图片的目录。
+                         例如: data/processed_yolo_data/images/
+        base_labels_dir: 存放所有源YOLO标签的目录。
+                         例如: data/processed_yolo_data/all_labels/
+        output_images_dir: 输出图片的目标根目录。
                                  脚本会在此目录下创建 train/ 和 val/ 子目录。
-        output_labels_dir (str): 输出标签的目标根目录 (例如 data/processed_yolo_data/labels/)
+                           例如: data/processed_yolo_data/images/
+        output_labels_dir: 输出标签的目标根目录。
                                  脚本会在此目录下创建 train/ 和 val/ 子目录。
-        train_ratio (float): 训练集所占的比例 (0.0 到 1.0之间)。
-        random_seed (int): 随机种子，用于可复现的划分。
+                           例如: data/processed_yolo_data/labels/
+        train_ratio: 训练集所占的比例 (0.0 到 1.0之间)。默认为 0.8。
+        random_seed: 随机种子，用于可复现的划分。默认为 42。
     """
-    print(f"开始划分数据集...")
+    print("开始划分数据集...")
     print(f"源图片目录: {base_images_dir}")
     print(f"源标签目录: {base_labels_dir}")
     print(f"目标图片目录: {output_images_dir}")
@@ -40,8 +43,10 @@ def split_dataset(base_images_dir, base_labels_dir, output_images_dir, output_la
 
     # 获取所有图片文件名 (不含路径，只含扩展名)
     try:
-        all_image_files = [f for f in os.listdir(base_images_dir) 
-                             if os.path.isfile(os.path.join(base_images_dir, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+        all_image_files = [
+            f for f in os.listdir(base_images_dir)
+            if os.path.isfile(os.path.join(base_images_dir, f)) and f.lower().endswith(('.jpg', '.jpeg', '.png'))
+        ]
     except FileNotFoundError:
         print(f"错误: 源图片目录 {base_images_dir} 未找到或无法访问。")
         return
@@ -113,31 +118,65 @@ def split_dataset(base_images_dir, base_labels_dir, output_images_dir, output_la
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="将图片和YOLO标签划分为训练集和验证集。")
-    parser.add_argument("--base_images_dir", type=str, default="data/processed_yolo_data/images",
-                        help="包含所有源图片的目录 (这些图片将被移动)")
-    parser.add_argument("--base_labels_dir", type=str, default="data/processed_yolo_data/all_labels",
-                        help="包含所有源YOLO标签的目录 (这些标签将被移动)")
-    parser.add_argument("--output_root_images", type=str, default="data/processed_yolo_data/images",
-                        help="输出图片的根目录，脚本会在此创建 train/ 和 val/ (默认与base_images_dir相同，实现原地创建子目录)")
-    parser.add_argument("--output_root_labels", type=str, default="data/processed_yolo_data/labels",
-                        help="输出标签的根目录，脚本会在此创建 train/ 和 val/ (默认: data/processed_yolo_data/labels)")
-    parser.add_argument("--train_ratio", type=float, default=0.8, help="训练集所占比例 (例如0.8表示80%%)")
-    parser.add_argument("--seed", type=int, default=42, help="随机种子，用于可复现的划分")
+    parser.add_argument(
+        "--base_images_dir",
+        type=str,
+        default="data/processed_yolo_data/images",
+        help="包含所有源图片的目录 (这些图片将被移动)"
+    )
+    parser.add_argument(
+        "--base_labels_dir",
+        type=str,
+        default="data/processed_yolo_data/all_labels",
+        help="包含所有源YOLO标签的目录 (这些标签将被移动)"
+    )
+    parser.add_argument(
+        "--output_root_images",
+        type=str,
+        default="data/processed_yolo_data/images",
+        help="输出图片的根目录，脚本会在此创建 train/ 和 val/ (默认与base_images_dir相同，实现原地创建子目录)"
+    )
+    parser.add_argument(
+        "--output_root_labels",
+        type=str,
+        default="data/processed_yolo_data/labels",
+        help="输出标签的根目录，脚本会在此创建 train/ 和 val/ (默认: data/processed_yolo_data/labels)"
+    )
+    parser.add_argument(
+        "--train_ratio",
+        type=float,
+        default=0.8,
+        help="训练集所占比例 (例如0.8表示80%%)"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="随机种子，用于可复现的划分"
+    )
 
     args = parser.parse_args()
 
     # 根据脚本位置调整相对路径为绝对路径或更可靠的相对路径
     current_script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_script_dir)
+    project_root = os.path.dirname(current_script_dir) # src目录的父目录，即项目根目录
 
-    def resolve_path(path_arg):
+    def resolve_path(path_arg: str) -> str:
+        """将可能是相对的路径参数解析为基于项目根目录的绝对路径。"""
         if not os.path.isabs(path_arg):
             return os.path.join(project_root, path_arg)
         return path_arg
 
-    base_images_dir = resolve_path(args.base_images_dir)
-    base_labels_dir = resolve_path(args.base_labels_dir)
-    output_root_images = resolve_path(args.output_root_images)
-    output_root_labels = resolve_path(args.output_root_labels)
+    base_images_dir_resolved = resolve_path(args.base_images_dir)
+    base_labels_dir_resolved = resolve_path(args.base_labels_dir)
+    output_root_images_resolved = resolve_path(args.output_root_images)
+    output_root_labels_resolved = resolve_path(args.output_root_labels)
 
-    split_dataset(base_images_dir, base_labels_dir, output_root_images, output_root_labels, args.train_ratio, args.seed) 
+    split_dataset(
+        base_images_dir_resolved,
+        base_labels_dir_resolved,
+        output_root_images_resolved,
+        output_root_labels_resolved,
+        args.train_ratio,
+        args.seed
+    ) 

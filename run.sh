@@ -78,14 +78,14 @@ if [ ! -z "${MODEL_TO_USE}" ]; then
     # --- 配置检测参数 (使用找到的模型) ---
     MODEL_WEIGHTS="${MODEL_TO_USE}"
     # 你可以按需修改这里的 INPUT_SOURCE
-    INPUT_SOURCE="data/source_dataset/original_competition_data/1747468171.jpg" 
+    INPUT_SOURCE="input/2.jpg" 
     # INPUT_SOURCE="data/processed_yolo_data/images/val/" # 验证集图片目录示例
     OUTPUT_DIR="results/detection_output_$(basename ${MODEL_WEIGHTS} .pt)" # 按模型名创建独立输出目录
     TARGET_CLASS="tennis_ball"
     SHOW_OUTPUT="true"
     SAVE_OUTPUT="true"
     SAVE_JSON_OUTPUT="true"
-    OUTPUT_JSON_PATH="${OUTPUT_DIR}/detected_results.json"
+    OUTPUT_JSON_PATH="${OUTPUT_DIR}/result.txt"
     # --------------------------------------
 
     echo "准备运行检测脚本..."
