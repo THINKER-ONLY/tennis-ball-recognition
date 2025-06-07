@@ -34,12 +34,12 @@ TRAIN_OUTPUT_PROJECT_DIR="tennis_ball_runs"
 TRAIN_BASE_NAME="first_train"
 
 # 用于检测 (这些可以在这里统一配置)
-INPUT_SOURCE="input" # 您可以按需修改这里的 INPUT_SOURCE
+INPUT_SOURCE="imgs" # 您可以按需修改这里的 INPUT_SOURCE (已根据要求统一为 imgs)
 TARGET_CLASS="tennis_ball"
 SHOW_OUTPUT="true"         # "true" 或 "false"
 SAVE_OUTPUT="true"         # "true" 或 "false"
 SAVE_JSON_OUTPUT="true"    # "true" 或 "false"
-PYTHON_SCRIPT_PATH="src/process.py" # Python脚本的路径
+PYTHON_SCRIPT_PATH="src/run_cli.py" # Python脚本的路径 (!!! 已修改为新的桥梁脚本 !!!)
 # -------------------------------------
 
 

@@ -21,16 +21,15 @@ tennis-ball-recognition/
 │           ├── train/        # 最终的训练标签 (YOLO TXT)
 │           └── val/          # 最终的验证标签 (YOLO TXT)
 ├── doc/                    # 项目文档 (可选)
-├── input/                  # 【重要】存放待检测的输入图片或视频文件 (run.sh 默认读取此目录)
+├── imgs/                   # 【重要】存放待检测的输入图片文件 (run.sh 默认读取此目录)
 ├── results/                # 检测结果输出目录 (由脚本创建)
-│                           # 当使用 run.sh 且 INPUT_SOURCE 为目录时, 例如: 
-│                           # results/detection_output_best/input_image_name/input_image_name.txt
-│                           # 当直接使用 process.py 且 source 为目录时类似。
+│                           # 每次运行会创建一个带时间戳的子目录, 例如: 
+│                           # results/20240101_120000_output/
 ├── slide/                  # 演示文稿 (可选)
 ├── src/                    # Python 源代码
 │   ├── convert_annotations.py # 原始标注 (JSON) 转 YOLO TXT
-│   ├── process.py          # 执行目标检测 (推理) 的核心脚本
-│   └── split_dataset.py      # 划分训练/验证集
+│   ├── process.py          # 核心检测逻辑 (提供 process_img 函数)
+│   └── run_cli.py          # 项目的命令行接口 (CLI)
 ├── tennis_ball_runs/       # YOLO 训练输出 (例如 first_train/, first_train2/)
 ├── video/                  # 存放一些项目相关的视频文件 (可选, 例如测试视频)
 ├── .git/                   # Git 版本控制目录
@@ -72,7 +71,7 @@ tennis-ball-recognition/
         ```bash
         pip install -r requirements.txt
         ```
-    主要依赖包括 `ultralytics`, `opencv-python`, `tqdm`。
+    该 `requirements.txt` 已配置为可自动安装适用于您机器 (CPU 或 GPU) 的 PyTorch 版本。
 
 ## 快速开始：进行目标检测 (使用 `run.sh`)
 
@@ -87,80 +86,22 @@ tennis-ball-recognition/
     ```
 
 3.  **准备输入文件**：
-    将您想要检测的图片文件 (例如 `.jpg`, `.png`) 或视频文件 (例如 `.mp4`) 放入项目根目录下的 `input/` 文件夹中。如果 `input/` 文件夹不存在，请创建它。
+    将您想要检测的图片文件 (例如 `.jpg`, `.png`) 放入项目根目录下的 `imgs/` 文件夹中。如果 `imgs/` 文件夹不存在，请创建它。
 
 4.  **运行检测脚本**：
     ```bash
     bash run.sh
     ```
-    此脚本会自动查找可用的最佳模型（优先使用您在根目录放置的 `best.pt` 或 `last.pt`，其次是最新训练生成的模型，最后是预训练的 `yolo11n.pt` 或 `yolov8n.pt`），然后对 `input/` 目录中的所有文件进行检测。
+    此脚本会自动查找可用的最佳模型（优先使用您在根目录放置的 `best.pt` 或 `last.pt`，其次是最新训练生成的模型），然后对 `imgs/` 目录中的所有图片进行检测。
 
 5.  **查看结果**：
-    *   检测结果（包括带标注的图片/视频帧以及JSON格式的检测数据）将保存在 `results/` 目录下。
-    *   具体的子目录结构通常是 `results/detection_output_[model_name]/`。
-    *   如果 `input/` 中有多个文件，或者输入的是一个包含多张图片的子目录，那么在 `detection_output_[model_name]/` 下可能会为每个输入图片或其父目录创建进一步的子文件夹来存放对应的结果。
-    *   例如，如果检测了 `input/my_image.jpg`，结果可能在 `results/detection_output_best/my_image/my_image.jpg` (标注图) 和 `results/detection_output_best/my_image/my_image.txt` (JSON数据)。
+    *   检测结果将保存在 `results/` 目录下，每次运行都会创建一个带时间戳的新子目录 (例如 `results/20240101_120000_output/`)。
+    *   **标注图片**: 所有处理过的、带有检测框的图片都保存在该子目录中。
+    *   **JSON 数据**: 一个名为 `_predictions.json` 的文件会保存在该子目录中，它包含了该次运行所有图片及其检测结果的完整记录。
 
 ## 数据准备 (用于训练新模型)
 
-1.  **放置原始数据**:
-    *   将您的原始训练图片（例如 `.jpg`, `.png` 文件）放入 `data/source_dataset/original_images/` 目录。
-    *   创建一个 JSON 标注文件 (例如 `data/source_dataset/annotations.json`)。
-        *   JSON 格式应为：`{"image_filename.jpg": [{"x": x_abs, "y": y_abs, "w": w_abs, "h": h_abs}, ...], "image2.png": [...]}`。
-        *   `x_abs, y_abs` 是边界框左上角的绝对像素坐标。
-        *   `w_abs, h_abs` 是边界框的绝对像素宽度和高度。
-
-2.  **转换标注为 YOLO TXT 格式**:
-    运行 `src/convert_annotations.py` 脚本。
-    ```bash
-    # 确保虚拟环境已激活
-    python src/convert_annotations.py \
-        --json_file data/source_dataset/annotations.json \
-        --images_dir data/source_dataset/original_images/ \
-        --output_labels_dir data/processed_yolo_data/all_labels/ \
-        --class_id 0 # 假设网球的类别ID为0
-    ```
-    这会将转换后的 `.txt` 标签文件输出到 `data/processed_yolo_data/all_labels/`。每个图像对应一个 `.txt` 文件。
-
-3.  **准备图片进行划分**:
-    由于 `split_dataset.py` 脚本会移动文件，建议先将原始图片复制到一个临时目录。
-    ```bash
-    # 确保虚拟环境已激活
-    mkdir -p data/processed_yolo_data/images_for_splitting
-    cp data/source_dataset/original_images/* data/processed_yolo_data/images_for_splitting/
-    # (如果图片很多，请确保此复制操作适合您的文件数量和类型)
-    ```
-
-4.  **划分训练集和验证集**:
-    运行 `src/split_dataset.py` 脚本。此脚本会将 `images_for_splitting/` 中的图片和 `all_labels/` 中的对应标签，按比例（默认为 80/20）移动到 `train` 和 `val` 子目录中。
-    ```bash
-    # 确保虚拟环境已激活
-    python src/split_dataset.py \
-        --base_images_dir data/processed_yolo_data/images_for_splitting/ \
-        --base_labels_dir data/processed_yolo_data/all_labels/ \
-        --output_root_images data/processed_yolo_data/images \
-        --output_root_labels data/processed_yolo_data/labels \
-        --train_ratio 0.8 \
-        --seed 42
-    ```
-    执行后，数据结构应如下：
-    *   `data/processed_yolo_data/images/train/`
-    *   `data/processed_yolo_data/images/val/`
-    *   `data/processed_yolo_data/labels/train/`
-    *   `data/processed_yolo_data/labels/val/`
-    原来的 `images_for_splitting/` 和 `all_labels/` 目录中的文件会被移走。
-
-5.  **配置 `dataset.yaml`**:
-    确保项目根目录下的 `dataset.yaml` 文件内容正确，指向处理后的数据。它应该如下所示：
-    ```yaml
-    path: data/processed_yolo_data  # 数据集的根路径 (相对于项目根目录)
-    train: images/train             # 训练图片的相对路径 (相对于上面的 path)
-    val: images/val                 # 验证图片的相对路径 (相对于上面的 path)
-
-    names:
-      0: tennis_ball                # 类别名称，0 是网球的类别ID (与 convert_annotations.py 中的 class_id 对应)
-    ```
-    **注意**: `dataset.yaml`中的 `path` 字段应设置为从项目根目录（即 `yolo` 命令执行的目录）到 `processed_yolo_data` 目录的相对路径。如果 `yolo train data=dataset.yaml` 从项目根目录运行，上述 `path: data/processed_yolo_data` 是正确的。
+关于如何准备自定义数据集以及训练新模型，请参阅详细的 **[模型训练指南 (`doc/TRAINING_ZH.md`)](./doc/TRAINING_ZH.md)**。
 
 ## 模型准备
 
@@ -186,7 +127,7 @@ tennis-ball-recognition/
 项目的主入口点是 `run.sh` 脚本。它会自动处理环境激活（再次确认）、模型查找、训练或检测的逻辑。
 
 **放置输入文件进行检测**: 
-如“快速开始”部分所述，将您的图片或视频文件放入项目根目录下的 `input/` 文件夹。
+如“快速开始”部分所述，将您的图片文件放入项目根目录下的 `imgs/` 文件夹。
 
 **执行脚本**:
 ```bash
@@ -200,48 +141,49 @@ bash run.sh
     *   **优先检测 (项目根目录)**: 检查项目根目录下是否存在 `best.pt`。如果存在，则使用此模型进行目标检测。
     *   如果根目录下没有 `best.pt`，则检查是否存在 `last.pt`。如果存在，则使用此模型进行目标检测。
     *   **其次检测 (`tennis_ball_runs/` 目录)**: 如果项目根目录下没有找到用户提供的 `best.pt` 或 `last.pt`，脚本会查找 `tennis_ball_runs/` 目录下由YOLO训练产生的最新 `first_trainX` 子目录，并尝试使用该目录下的 `weights/best.pt` (优先) 或 `weights/last.pt` (其次) 进行目标检测。
-    *   **执行检测**: 如果找到了任何可用的模型，脚本会调用 `src/process.py` 进行目标检测。
-        *   **默认输入源**: `input/` 目录。你可以将图片或视频放入此目录。`run.sh` 脚本内部的 `INPUT_SOURCE` 变量可以修改以指向特定文件或摄像头。
+    *   **执行检测**: 如果找到了任何可用的模型，脚本会调用 `src/run_cli.py` 进行目标检测。
+        *   **默认输入源**: `imgs/` 目录。`run.sh` 脚本内部的 `INPUT_SOURCE` 变量指向此目录。
         *   **检测结果**:
-            *   带标注的图片/视频会根据 `run.sh` 中的 `SAVE_OUTPUT="true"` 设置保存。
-            *   JSON 格式的检测结果会根据 `SAVE_JSON_OUTPUT="true"` 设置保存。
-            *   **JSON 输出路径**: `run.sh` 尝试通过 `--output_json_path` 参数指定一个统一的JSON输出文件 (例如 `results/detection_output_best/result.txt`)。然而，`src/process.py` 脚本目前会为输入源中的每个单独图片生成一个对应的 `.txt` 文件 (内容为JSON)。
-                *   如果 `INPUT_SOURCE` (在 `run.sh` 中配置) 是一个**目录** (例如默认的 `input/`)，并且包含如 `image1.jpg`, `image2.png` 的文件，则 JSON 文件会保存在类似 `results/detection_output_[model_name]/image1/image1.txt` 和 `results/detection_output_[model_name]/image2/image2.txt` 的路径下。
-                *   如果 `INPUT_SOURCE` 是一个**单一文件** (例如 `input/my_video.mp4` 或 `input/my_image.jpg`)，对应的 `.txt` 文件 (例如 `my_video.txt` 或 `my_image.txt`) 会直接保存在 `results/detection_output_[model_name]/` 目录下。
-            *   标注后的图片/视频的保存路径与上述 JSON 文件的组织方式类似，通常在同一子目录或主输出目录下。
-        *   你可以在 `run.sh` 脚本顶部修改检测参数 (`INPUT_SOURCE`, `SHOW_OUTPUT`, `SAVE_OUTPUT`, `SAVE_JSON_OUTPUT` 等)。
+            *   结果保存在 `results/` 下的一个带时间戳的子目录中。
+            *   该目录包含所有标注后的图片和一个 `_predictions.json` 汇总文件。
+        *   你可以在 `run.sh` 脚本顶部修改 `INPUT_SOURCE` 变量来指定不同的输入源。
     *   **执行训练**: 如果以上步骤均未找到可用的已训练模型，脚本将进入训练模式：
         *   它会优先使用项目根目录下的 `yolo11n.pt` (首选) 或 `yolov8n.pt` (次选) 作为训练的基础模型。
         *   如果根目录下没有这些基础模型，YOLO 将尝试从网络自动下载默认的 `yolov8n.pt`。
         *   训练命令使用 `dataset.yaml`，默认训练 50 个 epochs，参数为 `plots=False` (可以在 `run.sh` 中修改)。
         *   训练输出 (权重、日志等) 会保存在 `tennis_ball_runs/` 下的 `first_train` (或 `first_train2`, `first_train3`...) 目录中。
-        *   训练完成后，脚本会尝试使用新训练出的最佳模型 (`best.pt`) 或最后模型 (`last.pt`) 对默认输入源 (`input/`) 进行一次检测。
+        *   训练完成后，脚本会尝试使用新训练出的最佳模型 (`best.pt`) 或最后模型 (`last.pt`) 对默认输入源 (`imgs/`) 进行一次检测。
 
 ### 直接运行 Python 脚本 (高级)
 
 **前提条件**: 请确保已按照“环境设置”部分的说明激活了Python虚拟环境 (例如，通过 `source .venv/bin/activate`)。
 
-#### 运行目标检测 (`src/process.py`)
+#### 运行目标检测 (`src/run_cli.py`)
+`src/run_cli.py` 是项目功能丰富的命令行接口 (CLI)。`run.sh` 实际上是围绕此脚本的包装器。您可以直接运行它以获得更多控制选项，例如处理视频、实时摄像头或指定特定参数。
+
 ```bash
-# 确保虚拟环境已激活
-python src/process.py \
-    --weights path/to/your/model.pt \
-    --source path/to/image_or_video_or_directory_or_camera_id \
-    --output_dir results/my_custom_detection_output \
-    --target_class "tennis ball" \
-    --conf_thres 0.3 \
-    --iou_thres 0.5 \
-    --show_vid \
-    --save_vid \
-    --save_json
+# 示例：检测单个图片，并指定输出目录
+python src/run_cli.py \
+    --weights best.pt \
+    --source path/to/your/image.jpg \
+    --output-dir results/my_custom_run
+
+# 示例：处理整个目录的图片和视频，并关闭实时显示
+python src/run_cli.py \
+    --weights best.pt \
+    --source path/to/your/folder/ \
+    --output-dir results/another_run \
+    --hide
+
+# 示例：使用摄像头进行实时检测
+python src/run_cli.py \
+    --weights best.pt \
+    --source 0
 ```
-*   `--source`: 可以是单个图片、视频文件、包含图片的目录，或摄像头ID (如 `0`)。
-*   `--output_dir`: 检测结果的基础输出目录。
-    *   如果 `--source` 是单个文件 (例如 `image.jpg`)，标注后的图片/视频会直接保存在 `--output_dir` (例如 `results/my_custom_detection_output/processed_image.jpg`)。如果 `--save_json` 为 true，则 `image.txt` 也会保存在 `--output_dir` 中。
-    *   如果 `--source` 是一个目录 (例如 `my_images/`)，`process.py` 会在 `--output_dir` 下为该目录中的每个图片创建一个子目录 (以图片文件名命名，不含扩展名，例如 `results/my_custom_detection_output/image_stem/`)，并将标注后的图片和对应的 `[image_stem].txt` (JSON格式) 保存在该子目录中。
-*   `--save_json`: 为每个输入图片或视频的每一帧（如果适用）生成包含检测结果的 `.txt` 文件（内容为JSON格式）。文件名通常是基于输入图片名。
-*   `--output_json_path`: 此参数在 `src/process.py` 中已弃用，脚本不使用它来决定JSON输出路径或文件名。
-*   更多参数请运行 `python src/process.py --help`。
+*   `--source`: 可以是单个图片、视频文件、包含媒体文件的目录，或摄像头ID (如 `0`)。
+*   `--output-dir`: 检测结果的输出目录。如果未提供，则会自动在 `results/` 下创建一个带时间戳的目录。
+*   `--hide`: 隐藏实时显示的检测窗口。
+*   更多参数请运行 `python src/run_cli.py --help`。
 
 #### 运行 YOLO 训练 (直接使用 `yolo` CLI)
 ```bash
@@ -259,36 +201,19 @@ yolo train \
 更多参数请参考 Ultralytics YOLOv8 文档。
 
 #### 运行数据转换脚本 (`src/convert_annotations.py`)
-```bash
-# 确保虚拟环境已激活
-python src/convert_annotations.py \
-    --json_file data/source_dataset/annotations.json \
-    --images_dir data/source_dataset/original_images/ \
-    --output_labels_dir data/processed_yolo_data/all_labels/ \
-    --class_id 0
-```
+该功能已从主流程中移除以简化项目。如需进行数据格式转换，请参考 `doc/TRAINING_ZH.md` 中的数据准备步骤。
 
 #### 运行数据集划分脚本 (`src/split_dataset.py`)
-```bash
-# 确保虚拟环境已激活
-python src/split_dataset.py \
-    --base_images_dir data/processed_yolo_data/images_for_splitting/ \
-    --base_labels_dir data/processed_yolo_data/all_labels/ \
-    --output_root_images data/processed_yolo_data/images \
-    --output_root_labels data/processed_yolo_data/labels \
-    --train_ratio 0.8
-```
+该功能已从主流程中移除以简化项目。如需进行数据集划分，请参考 `doc/TRAINING_ZH.md` 中的数据准备步骤。
 
 ## 输出结果
 
 *   **训练结果**: 默认保存在 `tennis_ball_runs/` 目录下，每个训练运行对应一个子目录 (如 `first_train/`, `my_custom_train_run/`)，其中包含 `weights/` (存放 `best.pt`, `last.pt`) 和其他训练日志及图表。
 *   **检测结果**:
-    *   **使用 `run.sh`**: 
-        *   JSON 文件会如“使用 `run.sh` 运行项目”部分的“JSON 输出路径”所述生成。
-        *   带标注的图片/视频会保存在相应的输出目录中，结构与JSON文件类似。
-    *   **直接运行 `src/process.py`**:
-        *   带标注的图片/视频会保存在 `--output_dir` 指定的目录或其子目录中。
-        *   如果启用了 `--save_json`，对应的 `.txt` 文件 (JSON内容，通常命名为 `[image_stem].txt`) 会与标注图片一起保存。
+    *   **使用 `run.sh` 或 `run_cli.py`**:
+        *   结果保存在 `results/` 下的一个唯一的、带时间戳的子目录中。
+        *   该子目录包含所有经处理并带有标注框的图片/视频帧。
+        *   该子目录还包含一个 `_predictions.json` 文件，其中记录了所有检测到的对象的详细信息（文件名、类别、坐标、置信度）。
 
 ## 注意事项
 *   `run.sh` 中的 `INPUT_SOURCE` 变量可以修改为单个文件路径或摄像头ID。
