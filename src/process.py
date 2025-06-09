@@ -122,9 +122,10 @@ def process_img(img_path: str) -> list:
     返回:
        一个检测结果列表。每个元素是一个字典，格式如下:
         {
-            "label": "识别出的物体类别名 (str)",
-            "confidence": "置信度 (float)",
-            "bbox": "[x_min, y_min, width, height] (list of int)"
+            'x': '目标框左上角x坐标 (int)',
+            'y': '目标框左上角y坐标 (int)',
+            'w': '目标框宽度 (int)',
+            'h': '目标框高度 (int)'
         }
     """
     # 使用脚本顶部的全局默认配置
@@ -157,9 +158,10 @@ def process_img(img_path: str) -> list:
                 width, height = x_max - x_min, y_max - y_min
 
                 detections.append({
-                    "label": _yolo_model_for_process_img.names[class_id],
-                    "confidence": round(float(box.conf[0]), 4),
-                    "bbox": [int(x_min), int(y_min), int(width), int(height)]
+                    'x': int(x_min),
+                    'y': int(y_min),
+                    'w': int(width),
+                    'h': int(height)
                 })
     except Exception as e:
         print(f"处理图片 '{img_path}' 时发生错误 (process_img): {e}")

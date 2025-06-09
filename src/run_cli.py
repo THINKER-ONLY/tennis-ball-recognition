@@ -173,21 +173,41 @@ def run(args: argparse.Namespace):
         for img_path in image_paths:
             print(f"\n--- 正在处理: {Path(img_path).name} ---")
             
+            # 为当前图片创建独立的子输出目录
+            img_stem = Path(img_path).stem
+            current_output_dir = os.path.join(output_dir, img_stem)
+            if args.save_vid or args.save_json:
+                os.makedirs(current_output_dir, exist_ok=True)
+                print(f"当前图片的输出将保存到: {current_output_dir}")
+
             # 调用核心函数
             detections = process_img(img_path)
             print(f"检测到 {len(detections)} 个目标。")
 
             # 保存JSON结果
             if args.save_json:
-                json_path = os.path.join(output_dir, f"{Path(img_path).stem}.txt")
+                json_path = os.path.join(current_output_dir, f"{img_stem}.txt")
                 with open(json_path, 'w', encoding='utf-8') as f:
+                    # 注意：虽然标志是 save_json，但实际保存的是 txt 文件
+                    # 为了与竞赛要求保持一致，这里我们直接写入 process_img 返回的列表
                     json.dump(detections, f, ensure_ascii=False, indent=4)
-                print(f"JSON结果已保存至: {json_path}")
+                print(f"结果已保存至: {json_path}")
             
             # 显示或保存标注图片
             if args.show_vid or args.save_vid:
                 frame = cv2.imread(img_path)
-                annotated_frame = draw_detections(frame, detections)
+                
+                # draw_detections 现在需要使用不同的 bbox 格式
+                # 我们需要修改它或在这里适配
+                # 让我们在这里创建一个临时适配的版本
+                temp_detections_for_drawing = []
+                for det in detections:
+                    temp_detections_for_drawing.append({
+                        "label": "tennis ball", # 标签可以硬编码或从配置中获取
+                        "confidence": 1.0, # 置信度在当前格式下不可用
+                        "bbox": [det['x'], det['y'], det['w'], det['h']]
+                    })
+                annotated_frame = draw_detections(frame, temp_detections_for_drawing)
 
                 if args.show_vid:
                     cv2.imshow(f"Detection - {Path(img_path).name}", annotated_frame)
@@ -195,11 +215,12 @@ def run(args: argparse.Namespace):
                         break
 
                 if args.save_vid:
-                    save_path = os.path.join(output_dir, f"processed_{Path(img_path).name}")
+                    save_path = os.path.join(current_output_dir, f"processed_{Path(img_path).name}")
                     cv2.imwrite(save_path, annotated_frame)
                     print(f"标注图片已保存至: {save_path}")
 
-    cv2.destroyAllWindows()
+    if not args.show_vid:
+        cv2.destroyAllWindows()
     print("--- 命令行桥梁脚本 (run_cli.py) 执行完毕 ---")
 
 
