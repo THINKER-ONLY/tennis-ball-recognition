@@ -26,9 +26,7 @@ __pycache__/
 # data/processed_yolo_data/labels/val/
 # data/processed_yolo_data/all_labels/
 
-# YOLO 训练输出
-runs/
-tennis_ball_runs/
+
 
 # 脚本生成的输出 (根据实际情况添加)
 # 例如，如果 process.py 的输出目录是 results/ 或 video/outputs/

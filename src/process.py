@@ -13,15 +13,17 @@ import time
 import cv2
 from ultralytics import YOLO
 import numpy as np
+import json
+from pathlib import Path
 
 # ---------------------------------------------------------------------------- #
 #          默认配置 (主要用于 process_img 函数的直接调用)          #
 # ---------------------------------------------------------------------------- #
-DEFAULT_MODEL_WEIGHTS_PATH = "yolov8n.pt"  # process_img 使用的默认模型权重
+DEFAULT_MODEL_WEIGHTS_PATH = "tennis_ball_runs/first_train2/weights/best.pt"  # process_img 使用的默认模型权重
 DEFAULT_PROCESS_IMG_CONF_THRESHOLD = 0.25  # process_img 使用的默认置信度阈值
 DEFAULT_PROCESS_IMG_IOU_THRESHOLD = 0.45   # process_img 使用的默认IOU阈值
 # process_img 使用的默认目标类别。设为空字符串 "" 或 None 则检测所有类别。
-DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME = "tennis ball"
+DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME = "tennis_ball"
 
 # 全局变量，用于缓存 process_img 函数加载的模型及其配置，避免重复加载。
 _yolo_model_for_process_img = None
@@ -168,55 +170,116 @@ def process_img(img_path: str) -> list:
     return detections
 
 
+def draw_detections(frame, detections: list) -> any:
+    """
+    在图片上绘制检测框和标签。
+    此函数从 run_cli.py 复制而来，用于在 process.py 中进行结果可视化。
+    """
+    for det in detections:
+        # 传入的 detections 格式为: {'label': ..., 'confidence': ..., 'bbox': [x, y, w, h]}
+        label = det.get("label", "unknown")
+        confidence = det.get("confidence", -1.0) # 使用-1表示置信度不可用
+        x_min, y_min, width, height = det.get("bbox", [0,0,0,0])
+        x_max, y_max = x_min + width, y_min + height
+        
+        # 绘制矩形框
+        cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        
+        # 准备标签文本
+        if confidence >= 0 and confidence != 1.0: # 仅当置信度有效且不是伪造的1.0时显示
+            label_text = f"{label} {confidence:.2f}"
+        else:
+            label_text = label # 如果置信度不可用，则只显示标签
+
+        # 绘制标签背景和文字
+        (w, h), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+        cv2.rectangle(frame, (x_min, y_min - h - 10), (x_min + w, y_min - 5), (0, 255, 0), -1)
+        cv2.putText(frame, label_text, (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        
+    return frame
+
 #
 #以下代码仅作为选手测试代码时使用，仅供参考，可以随意修改
 #但是最终提交代码后，process.py文件是作为模块进行调用，而非作为主程序运行
 #因此提交时请根据情况删除不必要的额外代码
 #
 if __name__=='__main__':
+    # --- 配置 ---
     imgs_folder = './imgs/'
-    # 检查测试文件夹是否存在，不存在则创建
+    output_base_dir = "results/process_py_output" # 定义一个独立的输出目录
+    
+    print(f"--- 直接运行 process.py (带自动保存功能) ---")
+    print(f"输入目录: {imgs_folder}")
+    print(f"输出将保存到: {output_base_dir}")
+
+    # 检查测试文件夹是否存在
     if not os.path.exists(imgs_folder):
-        print(f"测试文件夹 '{imgs_folder}' 不存在，正在创建...")
         os.makedirs(imgs_folder)
-        # 创建一张虚拟图片以提示用户
-        dummy_img_path = os.path.join(imgs_folder, "dummy_test_image.png")
-        try:
-            cv2.imwrite(dummy_img_path, np.zeros((480, 640, 3), dtype=np.uint8))
-            print(f"已在 '{imgs_folder}' 中创建一张虚拟测试图片。")
-            print("请将您的测试图片放入该文件夹中再重新运行。")
-        except Exception as e:
-            print(f"创建虚拟图片失败: {e}")
+        print(f"测试文件夹 '{imgs_folder}' 不存在，已创建。")
 
     # 获取所有图片路径
     img_paths = [os.path.join(imgs_folder, f) for f in os.listdir(imgs_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
     if not img_paths:
-        print(f"测试文件夹 '{imgs_folder}' 为空，无法进行测试。")
+        print(f"错误: 测试文件夹 '{imgs_folder}' 为空。请将您的测试图片放入该文件夹中再重新运行。")
     else:
-        def now():
-            return int(time.time()*1000)
-        
+        # --- 计时变量 ---
+        def now(): return int(time.time() * 1000)
         count_time = 0
         max_time = 0
-        min_time = float('inf') # 使用极大值初始化，确保第一次比较时被覆盖
+        min_time = float('inf')
         
+        # --- 处理循环 ---
         for img_path in img_paths:
-            print(img_path,':')
+            print(f"\n--- 正在处理: {os.path.basename(img_path)} ---")
+            
             last_time = now()
-            result = process_img(img_path)
+            
+            # 1. 调用核心检测函数
+            detections = process_img(img_path)
+            
             run_time = now() - last_time
-            print('result:\n',result)
-            print('run time: ', run_time, 'ms')
-            print()
+            
+            print(f"检测到 {len(detections)} 个目标。")
+            print(f"运行时间: {run_time} ms")
+
+            # 更新计时
             count_time += run_time
-            if run_time > max_time:
-                max_time = run_time
-            if run_time < min_time:
-                min_time = run_time
-        
+            if run_time > max_time: max_time = run_time
+            if run_time < min_time: min_time = run_time
+
+            # 2. 准备输出目录
+            img_stem = Path(img_path).stem
+            current_output_dir = os.path.join(output_base_dir, img_stem)
+            os.makedirs(current_output_dir, exist_ok=True)
+            
+            # 3. 保存JSON结果 (格式与 run_cli.py 保持一致)
+            json_path = os.path.join(current_output_dir, f"{img_stem}_results.txt")
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(detections, f, ensure_ascii=False, indent=4)
+            print(f"检测结果已保存至: {json_path}")
+            
+            # 4. 保存标注图片
+            frame = cv2.imread(img_path)
+            
+            # 转换检测结果格式以适配绘图函数 (模仿 run_cli.py 的做法)
+            temp_detections_for_drawing = []
+            for det in detections:
+                temp_detections_for_drawing.append({
+                    "label": DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME or "detection",
+                    "confidence": -1, # process_img不返回置信度，设为-1
+                    "bbox": [det['x'], det['y'], det['w'], det['h']]
+                })
+                
+            annotated_frame = draw_detections(frame, temp_detections_for_drawing)
+            
+            save_path = os.path.join(current_output_dir, f"annotated_{os.path.basename(img_path)}")
+            cv2.imwrite(save_path, annotated_frame)
+            print(f"标注图片已保存至: {save_path}")
+            
+        # --- 打印统计信息 ---
         if len(img_paths) > 0:
-            print('\n')
-            print('avg time: ',int(count_time/len(img_paths)),'ms')
-            print('max time: ',max_time,'ms')
-            print('min time: ',min_time,'ms')
+            print('\n--- 统计信息 ---')
+            print(f'平均时间: {int(count_time / len(img_paths))} ms')
+            print(f'最长时间: {max_time} ms')
+            print(f'最短时间: {min_time} ms')
