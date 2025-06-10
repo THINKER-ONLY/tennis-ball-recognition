@@ -1,6 +1,200 @@
 # 网球目标检测项目 (YOLOv8)
 
-本项目旨在使用 YOLOv8 实现网球的实时目标检测。项目包含数据预处理、模型训练和目标检测的完整流程，并通过 `run.sh` 脚本提供了一键执行检测或训练的功能。
+这是一个基于 YOLOv8 的网球目标检测项目。它被设计为一个功能完整且易于扩展的模板，涵盖了从训练到检测再到结果可视化的完整流程。
+
+## 核心特性
+
+- **清晰的架构分层**: 项目采用三层架构（启动层、接口层、核心逻辑层），职责分明，易于维护。
+- **灵活的调用方式**: 支持多种运行方式，满足从一键测试到精细化调试的各种需求。
+- **强大的脚本支持**: 提供 `run.sh` 脚本，可自动完成模型查找、训练、检测等任务。
+- **模块化API**: 核心检测功能被封装在 `process_img` 函数中，可作为独立的库轻松集成到其他程序。
+- **动态配置**: 支持通过 `configure_processor` 函数在运行时安全地修改检测参数。
+
+## 项目架构
+
+本项目采用清晰的三层分离架构，确保了代码的高度模块化、可维护性和可扩展性。
+
+```mermaid
+graph TD
+    subgraph 用户交互层
+        A[用户]
+    end
+
+    subgraph 启动与接口层
+        B(run.sh<br/>启动脚本);
+        C(run_cli.py<br/>命令行接口);
+    end
+
+    subgraph 核心逻辑层
+        D(process.py<br/>核心处理模块);
+    end
+    
+    subgraph 数据与模型
+        E(imgs/ <br/>输入图片);
+        F(best.pt / yolov8n.pt <br/>模型文件);
+        G(results/ <br/>输出结果);
+    end
+
+    A -- "bash run.sh" --> B;
+    A -- "python src/run_cli.py --source ..." --> C;
+    B -- "调用" --> C;
+    C -- "调用 configure_processor() 配置参数" --> D;
+    C -- "调用 process_img()" --> D;
+    D -- "加载" --> F;
+    D -- "读取" --> E;
+    D -- "返回检测结果" --> C;
+    C -- "保存" --> G;
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style C fill:#ccf,stroke:#333,stroke-width:2px
+    style D fill:#cde,stroke:#333,stroke-width:2px
+```
+
+- **启动层 (`run.sh`)**: 项目的最外层封装。它为用户提供了一键式的操作体验，能自动处理环境检查、模型查找、按需训练、启动检测等一系列复杂任务。它是进行**标准化、可复现操作**的首选。
+- **接口层 (`src/run_cli.py`)**: 命令行接口（CLI）。它负责解析用户通过命令行传入的各种参数（如输入源、模型路径、置信度阈值等），然后通过调用 `configure_processor()` 函数将这些配置安全地传递给核心逻辑层。它是进行**灵活、可定制化测试与调试**的"专业工具"。
+- **核心逻辑层 (`src/process.py`)**: 项目的大脑。它包含了核心的 `process_img()` 检测函数和模型加载逻辑。它与外界的交互完全通过其定义的函数接口进行，不依赖于任何特定的调用方式。它作为**可重用的库**，可以被任何程序轻松集成。
+
+---
+
+## 环境设置
+
+1.  **创建虚拟环境**
+    - 推荐使用 `uv` (来自 Astral):
+        ```bash
+        uv venv
+        ```
+    - 或者使用 Python 内置的 `venv`:
+        ```bash
+        python3 -m venv .venv
+        ```
+
+2.  **激活虚拟环境**
+    ```bash
+    source .venv/bin/activate
+    ```
+    **重要提示**: 在执行本项目中的任何 Python 或 Shell 脚本之前，**务必先激活虚拟环境**。
+
+3.  **安装依赖**
+    - `uv` 用户:
+        ```bash
+        uv pip install -r requirements.txt
+        ```
+    - `pip` 用户:
+        ```bash
+        pip install -r requirements.txt
+        ```
+
+---
+
+## 如何运行
+
+本项目提供了多种运行方式，以适应不同的使用场景。
+
+### 方式一：使用启动脚本 (推荐)
+
+这是最简单、最可靠的运行方式，适用于绝大多数场景。
+
+**使用方法**:
+```bash
+bash run.sh
+```
+
+**工作流程**:
+1.  **智能模型查找**: 自动在 `tennis_ball_runs/` 目录中查找最新的训练成果（`best.pt`）。
+2.  **按需训练**: 如果未找到任何已训练的模型，它会自动调用 `yolo` 开始一个新的训练任务。
+3.  **执行检测**: 使用找到的（或新训练的）模型，对 `imgs/` 目录下的图片进行检测。
+4.  **保存结果**: 检测结果（包括标注图片和数据文件）会自动保存在 `results/` 下的一个带时间戳的目录中。
+
+### 方式二：使用命令行接口 (用于灵活调试)
+
+当你需要对特定文件进行测试，或者想要微调检测参数时，这是最佳选择。
+
+**使用示例**:
+
+- **对指定目录进行检测**:
+  ```bash
+  python src/run_cli.py --source imgs/ --save_vid --save_json
+  ```
+- **测试单个视频文件**:
+  ```bash
+  python src/run_cli.py --source /path/to/your/video.mp4 --save_vid
+  ```
+- **使用不同的模型和置信度**:
+  ```bash
+  python src/run_cli.py --source imgs/ --weights /path/to/another.pt --conf_thres 0.5
+  ```
+
+### 方式三：直接运行核心模块 (用于快速验证)
+
+此方式用于快速验证核心模块的基本功能，它会使用预设在 `process.py` 文件顶部的默认配置。
+
+**使用方法**:
+```bash
+python src/process.py
+```
+**工作流程**:
+- 使用 `process.py` 中写死的默认配置（模型、参数等）。
+- 处理 `imgs/` 目录下的所有图片。
+- 将结果保存到固定的 `results/process_py_output/` 目录中。
+
+---
+
+## 作为API库使用
+
+本项目的核心价值之一是 `process_img` 函数可以作为API被轻松集成。
+
+**使用示例**:
+
+```python
+# 在你的测试程序中
+from src.process import process_img, configure_processor
+import cv2
+
+# --- 场景1: 使用默认配置直接调用 ---
+print("使用默认配置进行检测...")
+detections_default = process_img("imgs/your_image_1.jpg")
+print(f"找到 {len(detections_default)} 个目标。")
+
+
+# --- 场景2: 动态修改配置后调用 ---
+print("\n使用自定义配置进行检测...")
+# 使用官方配置函数，安全地修改本次运行的参数
+configure_processor(conf=0.8, iou=0.6) 
+
+# 再次调用 process_img, 它现在会使用 conf=0.8, iou=0.6 来进行检测
+detections_custom = process_img("imgs/your_image_2.jpg")
+print(f"在高置信度下找到 {len(detections_custom)} 个目标。")
+
+
+# --- 场景3: 切换模型并调用 ---
+print("\n切换模型进行检测...")
+# 切换到另一个模型
+configure_processor(weights="yolov8n.pt")
+detections_new_model = process_img("imgs/your_image_3.jpg")
+print(f"使用新模型找到 {len(detections_new_model)} 个目标。")
+```
+
+这种设计使得你可以在自己的程序中，灵活、安全地调用和控制本项目的核心检测功能。
+
+## 项目文件结构
+
+```
+.
+├── imgs/                   # 存放待检测的输入图片
+├── results/                # 存放检测结果
+│   ├── detection_output_.../ # run_cli.py 的输出目录
+│   └── process_py_output/  # process.py 的输出目录
+├── src/                    # 源代码
+│   ├── process.py          # 核心逻辑模块 (The "Chef")
+│   └── run_cli.py          # 命令行接口模块 (The "Waiter")
+├── tennis_ball_runs/       # YOLO 训练输出 (例如 first_train/, first_train2/)
+├── .venv/                  # Python 虚拟环境
+├── dataset.yaml            # YOLO 数据集配置文件
+├── README.md               # 本文档
+├── requirements.txt        # Python 依赖包
+└── run.sh                  # 项目主运行脚本
+```
 
 ## 目录结构
 
@@ -44,61 +238,6 @@ tennis-ball-recognition/
 └── last.pt                 # (可选) 用户训练的最后模型 (可放置于根目录供 run.sh 优先检测)
 ```
 
-## 环境设置
-
-1.  **创建虚拟环境**
-    *   推荐使用 `uv` (来自 Astral):
-        ```bash
-        uv venv
-        ```
-    *   或者使用 Python 内置的 `venv`:
-        ```bash
-        python3 -m venv .venv
-        ```
-
-2.  **激活虚拟环境**
-    ```bash
-    source .venv/bin/activate
-    ```
-    **重要提示**: 在执行本项目中的任何 Python 脚本或 `run.sh` 脚本之前，**务必先激活虚拟环境**。
-
-3.  **安装依赖**
-    *   如果使用 `uv` (虚拟环境激活后):
-        ```bash
-        uv pip install -r requirements.txt
-        ```
-    *   如果使用 `pip` (虚拟环境激活后):
-        ```bash
-        pip install -r requirements.txt
-        ```
-    该 `requirements.txt` 已配置为可自动安装适用于您机器 (CPU 或 GPU) 的 PyTorch 版本。
-
-## 快速开始：进行目标检测 (使用 `run.sh`)
-
-这是使用本项目进行目标检测最简单直接的方法：
-
-1.  **确保环境已设置**：请确保您已按照上面的“环境设置”部分创建了虚拟环境并安装了所有依赖。
-
-2.  **激活虚拟环境**：
-    ```bash
-    cd tennis-ball-recognition
-    source .venv/bin/activate
-    ```
-
-3.  **准备输入文件**：
-    将您想要检测的图片文件 (例如 `.jpg`, `.png`) 放入项目根目录下的 `imgs/` 文件夹中。如果 `imgs/` 文件夹不存在，请创建它。
-
-4.  **运行检测脚本**：
-    ```bash
-    bash run.sh
-    ```
-    此脚本会自动查找可用的最佳模型（优先使用您在根目录放置的 `best.pt` 或 `last.pt`，其次是最新训练生成的模型），然后对 `imgs/` 目录中的所有图片进行检测。
-
-5.  **查看结果**：
-    *   检测结果将保存在 `results/` 目录下，每次运行都会创建一个带时间戳的新子目录 (例如 `results/20240101_120000_output/`)。
-    *   **标注图片**: 所有处理过的、带有检测框的图片都保存在该子目录中。
-    *   **JSON 数据**: 一个名为 `_predictions.json` 的文件会保存在该子目录中，它包含了该次运行所有图片及其检测结果的完整记录。
-
 ## 数据准备 (用于训练新模型)
 
 关于如何准备自定义数据集以及训练新模型，请参阅详细的 **[模型训练指南 (`doc/TRAINING_ZH.md`)](./doc/TRAINING_ZH.md)**。
@@ -122,12 +261,12 @@ tennis-ball-recognition/
 
 ### 使用 `run.sh` 运行项目 (推荐)
 
-**前提条件**: 请确保已按照“环境设置”部分的说明激活了Python虚拟环境 (例如，通过 `source .venv/bin/activate`)。
+**前提条件**: 请确保已按照"环境设置"部分的说明激活了Python虚拟环境 (例如，通过 `source .venv/bin/activate`)。
 
 项目的主入口点是 `run.sh` 脚本。它会自动处理环境激活（再次确认）、模型查找、训练或检测的逻辑。
 
 **放置输入文件进行检测**: 
-如“快速开始”部分所述，将您的图片文件放入项目根目录下的 `imgs/` 文件夹。
+如"快速开始"部分所述，将您的图片文件放入项目根目录下的 `imgs/` 文件夹。
 
 **执行脚本**:
 ```bash
@@ -156,7 +295,7 @@ bash run.sh
 
 ### 直接运行 Python 脚本 (高级)
 
-**前提条件**: 请确保已按照“环境设置”部分的说明激活了Python虚拟环境 (例如，通过 `source .venv/bin/activate`)。
+**前提条件**: 请确保已按照"环境设置"部分的说明激活了Python虚拟环境 (例如，通过 `source .venv/bin/activate`)。
 
 #### 运行目标检测 (`src/run_cli.py`)
 `src/run_cli.py` 是项目功能丰富的命令行接口 (CLI)。`run.sh` 实际上是围绕此脚本的包装器。您可以直接运行它以获得更多控制选项，例如处理视频、实时摄像头或指定特定参数。

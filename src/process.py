@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-YOLOv8 目标检测模块。
+YOLOv8 目标检测核心模块 (The "Chef")
 
-该脚本的核心是 `process_img` 函数，它接收一张图片路径，
-并返回图中检测到的物体的结构化数据。
+该脚本的核心是 `process_img` 函数，它作为项目的核心API，
+接收一张图片路径，并返回图中检测到的物体的结构化数据。
 
-主要依赖: ultralytics, opencv-python, numpy.
+它被设计为可以被其他程序（如 run_cli.py 或外部测试程序）作为库导入和调用。
+同时，当它被直接执行时 (python src/process.py)，它会运行一个独立的、
+带自动保存功能的测试流程。
+
+主要依赖: ultralytics, opencv-python, numpy, json, pathlib.
 """
 
 import os
@@ -16,20 +20,52 @@ import numpy as np
 import json
 from pathlib import Path
 
+
 # ---------------------------------------------------------------------------- #
 #          默认配置 (主要用于 process_img 函数的直接调用)          #
 # ---------------------------------------------------------------------------- #
-DEFAULT_MODEL_WEIGHTS_PATH = "tennis_ball_runs/first_train2/weights/best.pt"  # process_img 使用的默认模型权重
-DEFAULT_PROCESS_IMG_CONF_THRESHOLD = 0.25  # process_img 使用的默认置信度阈值
-DEFAULT_PROCESS_IMG_IOU_THRESHOLD = 0.45   # process_img 使用的默认IOU阈值
-# process_img 使用的默认目标类别。设为空字符串 "" 或 None 则检测所有类别。
-DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME = "tennis_ball"
+# 这些全局变量作为 process_img 的默认配置。
+# 它们可以被 configure_processor 函数动态修改，以实现灵活的配置。
+DEFAULT_MODEL_WEIGHTS_PATH = "tennis_ball_runs/first_train2/weights/best.pt"  # 默认模型权重
+DEFAULT_PROCESS_IMG_CONF_THRESHOLD = 0.20  # 默认置信度阈值
+DEFAULT_PROCESS_IMG_IOU_THRESHOLD = 0.45   # 默认IOU阈值
+DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME = "tennis_ball" # 默认目标类别
 
-# 全局变量，用于缓存 process_img 函数加载的模型及其配置，避免重复加载。
+# ---------------------------------------------------------------------------- #
+#          内部状态变量 (用于模型缓存)          #
+# ---------------------------------------------------------------------------- #
+# 以下全局变量用于在内存中缓存已加载的YOLO模型，避免在连续调用中反复从磁盘加载模型，
+# 从而极大地提升性能。这是一种单例模式的应用。
 _yolo_model_for_process_img = None
 _model_target_class_id_for_process_img = None
 _current_process_img_weights_path = None
 _current_process_img_target_class = None
+
+# ---------------------------------------------------------------------------- #
+#          模块配置接口 (提升模块化)          #
+# ---------------------------------------------------------------------------- #
+def configure_processor(weights: str = None, conf: float = None, iou: float = None, target_class: str = None):
+    """
+    动态配置 process_img 函数所使用的全局参数。
+
+    这是推荐的配置方式，它为本模块提供了一个清晰、受控的配置接口，
+    避免了其他模块直接修改本模块内部全局变量的紧密耦合问题。
+
+    Args:
+        weights: 模型权重文件的路径。
+        conf: 目标检测的置信度阈值。
+        iou: 用于NMS的IOU阈值。
+        target_class: 目标类别名称。
+    """
+    global DEFAULT_MODEL_WEIGHTS_PATH, DEFAULT_PROCESS_IMG_CONF_THRESHOLD, DEFAULT_PROCESS_IMG_IOU_THRESHOLD, DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME
+    if weights is not None:
+        DEFAULT_MODEL_WEIGHTS_PATH = weights
+    if conf is not None:
+        DEFAULT_PROCESS_IMG_CONF_THRESHOLD = conf
+    if iou is not None:
+        DEFAULT_PROCESS_IMG_IOU_THRESHOLD = iou
+    if target_class is not None:
+        DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME = target_class
 
 
 def _initialize_model_for_process_img(
@@ -198,12 +234,16 @@ def draw_detections(frame, detections: list) -> any:
         
     return frame
 
-#
-#以下代码仅作为选手测试代码时使用，仅供参考，可以随意修改
-#但是最终提交代码后，process.py文件是作为模块进行调用，而非作为主程序运行
-#因此提交时请根据情况删除不必要的额外代码
-#
+# ---------------------------------------------------------------------------- #
+#          主程序入口 (仅当直接运行时执行)          #
+# ---------------------------------------------------------------------------- #
 if __name__=='__main__':
+    # 这部分代码块提供了一个方便的、自包含的测试功能。
+    # 当你通过 `python src/process.py` 直接运行此文件时，
+    # 它会自动处理 `imgs` 目录下的所有图片，并将结果（包括标注图片和数据文件）
+    # 保存到 `results/process_py_output` 目录中。
+    # 这个功能不会在 `process.py` 被其他脚本作为模块导入时触发。
+    
     # --- 配置 ---
     imgs_folder = './imgs/'
     output_base_dir = "results/process_py_output" # 定义一个独立的输出目录

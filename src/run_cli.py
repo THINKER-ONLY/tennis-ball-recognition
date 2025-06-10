@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-命令行接口 (CLI) 的桥梁脚本。
+命令行接口 (CLI) 的桥梁脚本 (The "Waiter")
 
-该脚本旨在恢复 `process.py` 在被修改为简单API模板之前所具备的丰富命令行功能。
-它接收命令行参数，并调用 `src.process.py` 中的 `process_img` 函数来执行核心检测任务。
-它处理不同类型的输入源（图片、目录、视频），并管理结果的显示与保存。
+该脚本的职责是解析用户从命令行输入的参数，并将这些参数通过规范的接口
+传递给核心处理模块 `src.process.py`。它本身不包含核心检测逻辑。
 
+这种将"接口"与"核心逻辑"分离的设计，是提升代码模块化和可维护性的关键。
+它使得我们可以独立地修改命令行接口的交互方式，而完全不影响核心检测模块。
 """
 import os
 import sys
@@ -249,10 +250,14 @@ if __name__ == "__main__":
     # (注意：这是对原process.py的一个小入侵，但对于功能是必要的)
     try:
         from src import process
-        process.DEFAULT_MODEL_WEIGHTS_PATH = cli_args.weights
-        process.DEFAULT_PROCESS_IMG_CONF_THRESHOLD = cli_args.conf_thres
-        process.DEFAULT_PROCESS_IMG_IOU_THRESHOLD = cli_args.iou_thres
-        process.DEFAULT_PROCESS_IMG_TARGET_CLASS_NAME = cli_args.target_class
+        # 使用 process 模块提供的配置函数来传递参数
+        # 这是比直接修改另一个模块的全局变量更清晰、更健壮的方式
+        process.configure_processor(
+            weights=cli_args.weights,
+            conf=cli_args.conf_thres,
+            iou=cli_args.iou_thres,
+            target_class=cli_args.target_class
+        )
         print("已通过CLI参数动态更新process.py中的默认配置。")
     except Exception as e:
         print(f"警告: 动态更新 process.py 配置失败: {e}")
